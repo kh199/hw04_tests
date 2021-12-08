@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -33,10 +34,11 @@ class PostPagesTests(TestCase):
         templates_pages_names = {
             'posts/index.html': reverse('posts:index'),
             'posts/group_list.html': (
-                reverse('posts:group_list', kwargs={'slug': 'test-slug'})
+                reverse('posts:group_list', kwargs={'slug': self.group.slug})
             ),
             'posts/profile.html': (
-                reverse('posts:profile', kwargs={'username': 'TestUser'})
+                reverse('posts:profile',
+                        kwargs={'username': self.user.username})
             ),
             'posts/post_detail.html': (
                 reverse('posts:post_detail', kwargs={'post_id': self.post.id})
@@ -55,35 +57,55 @@ class PostPagesTests(TestCase):
                         kwargs={'post_id': self.post.id})))
         self.assertTemplateUsed(response, 'posts/create_post.html')
 
-    def test_home_page_show_correct_context(self):
-        """Шаблон index сформирован с правильным контекстом (список постов)."""
-        response = self.authorized_client.get(reverse('posts:index'))
-        first_object = response.context['page_obj'][0]
-        self.assertEqual(first_object.text, 'Тестовый текст')
+    def test_post_show_correct_text(self):
+        """Проверка текста первого поста."""
+        templates_pages_names = {
+            reverse('posts:index'): self.post.text,
+            reverse('posts:group_list',
+                    kwargs={'slug': self.group.slug}): self.post.text,
+            reverse('posts:profile',
+                    kwargs={'username': self.user.username}): self.post.text,
+        }
+        for value, expected in templates_pages_names.items():
+            with self.subTest(value=value):
+                response = self.authorized_client.get(value)
+                first_object = response.context['page_obj'][0]
+                self.assertEqual(first_object.text, expected)
+
+    def test_post_show_correct_post_id(self):
+        """Проверка id первого поста."""
+        templates_pages_names = {
+            reverse('posts:index'): self.post.id,
+            reverse('posts:group_list',
+                    kwargs={'slug': self.group.slug}): self.post.id,
+            reverse('posts:profile',
+                    kwargs={'username': self.user.username}): self.post.id,
+        }
+        for value, expected in templates_pages_names.items():
+            with self.subTest(value=value):
+                response = self.authorized_client.get(value)
+                first_object = response.context['page_obj'][0]
+                self.assertEqual(first_object.id, expected)
 
     def test_group_list_page_show_correct_context(self):
         """Шаблон group_list передает список постов группы."""
         response = (self.authorized_client.
                     get(reverse('posts:group_list',
-                        kwargs={'slug': 'test-slug'})))
+                        kwargs={'slug': self.group.slug})))
         group = response.context['group']
-        first_object = response.context['page_obj'][0]
-        post_text_0 = first_object.text
-        self.assertEqual(group, Group.objects.get(slug='test-slug'))
-        self.assertEqual(post_text_0, 'Тестовый текст')
+        self.assertEqual(group, Group.objects.get(slug=self.group.slug))
 
     def test_profile_page_show_correct_context(self):
         """Шаблон profile передает список постов пользователя."""
         response = (self.authorized_client.
                     get(reverse('posts:profile',
-                        kwargs={'username': 'TestUser'})))
+                        kwargs={'username': self.user.username})))
         author = response.context['author']
         num_post = response.context['num_post']
-        first_object = response.context['page_obj'][0]
-        post_text_0 = first_object.text
-        self.assertEqual(author, User.objects.get(username='TestUser'))
-        self.assertEqual(num_post, 1)
-        self.assertEqual(post_text_0, 'Тестовый текст')
+        self.assertEqual(author, User.objects.get(username=self.user.username))
+        self.assertEqual(num_post, Post.objects.filter(
+            author__username=self.user.username
+        ).count())
 
     def test_post_detail_pages_show_correct_context(self):
         """Шаблон post_detail передает один пост, отфильтрованный по id."""
@@ -150,11 +172,12 @@ class PaginatorViewsTest(TestCase):
 
     def test_first_page_contains_ten_records(self):
         templates_pages_names = {
-            reverse('posts:index'): 10,
+            reverse('posts:index'): settings.POSTS_PER_PAGE,
             reverse('posts:group_list',
-                    kwargs={'slug': 'test-slug2'}): 10,
+                    kwargs={'slug': self.group.slug}): settings.POSTS_PER_PAGE,
             reverse('posts:profile',
-                    kwargs={'username': 'TestUser2'}): 10,
+                    kwargs={'username': self.user.username}):
+            settings.POSTS_PER_PAGE,
         }
         for reverse_template, expected in templates_pages_names.items():
             with self.subTest(reverse_template=reverse_template):
@@ -162,12 +185,17 @@ class PaginatorViewsTest(TestCase):
                 self.assertEqual(len(response.context['page_obj']), expected)
 
     def test_second_page_contains_three_records(self):
+        all_posts = Post.objects.filter(
+            author__username=self.user.username
+        ).count()
+        second_page_posts = all_posts - settings.POSTS_PER_PAGE
         templates_pages_names = {
-            reverse('posts:index'): 3,
+            reverse('posts:index'): second_page_posts,
             reverse('posts:group_list',
-                    kwargs={'slug': 'test-slug2'}): 3,
+                    kwargs={'slug': self.group.slug}): second_page_posts,
             reverse('posts:profile',
-                    kwargs={'username': 'TestUser2'}): 3,
+                    kwargs={'username': self.user.username}):
+            second_page_posts,
         }
         for reverse_template, expected in templates_pages_names.items():
             with self.subTest(reverse_template=reverse_template):
