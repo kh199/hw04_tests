@@ -46,9 +46,6 @@ class PostCreateFormTests(TestCase):
                                      kwargs={'username': self.user.username}))
         self.assertEqual(Post.objects.count(), posts_count + 1)
         self.assertEqual(last_object.text, form_data['text'])
-        self.assertEqual(last_object.id, Post.objects.get(
-            text=form_data['text']).id
-        )
 
     def test_create_group_post(self):
         """Создание поста группы"""
@@ -68,9 +65,6 @@ class PostCreateFormTests(TestCase):
                                      kwargs={'username': self.user.username}))
         self.assertEqual(Post.objects.count(), posts_count + 1)
         self.assertEqual(last_object.text, form_data['text'])
-        self.assertEqual(last_object.id, Post.objects.get(
-            text=form_data['text']).id
-        )
         self.assertEqual(last_object.group.id, form_data['group'])
 
     def test_edit_post_without_group(self):
@@ -109,7 +103,7 @@ class PostCreateFormTests(TestCase):
                                      kwargs={'post_id': self.post.id}))
         self.assertEqual(Post.objects.count(), posts_count)
         self.assertEqual(post_context.text, form_data['text'])
-        self.assertEqual(post_context.group.title, self.group.title)
+        self.assertEqual(post_context.group.id, form_data['group'])
 
     def test_create_post_by_guest(self):
         """Создание поста неавторизированным пользователем"""
@@ -130,7 +124,6 @@ class PostCreateFormTests(TestCase):
     def test_edit_post_by_guest(self):
         """Редактирование поста неавторизированным пользователем"""
         posts_count = Post.objects.count()
-        post = Post.objects.get(id=self.post.id)
         form_data = {
             'text': 'Отредактированный пост',
         }
@@ -143,5 +136,5 @@ class PostCreateFormTests(TestCase):
         login_url = reverse('users:login')
         self.assertRedirects(response, f'{login_url}?next={edit_url}')
         self.assertEqual(Post.objects.count(), posts_count)
-        self.assertEqual(post.text, self.post.text)
-        self.assertNotEqual(post.text, form_data['text'])
+        self.assertEqual(self.post.text, self.post.text)
+        self.assertNotEqual(self.post.text, form_data['text'])
