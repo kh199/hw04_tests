@@ -17,7 +17,6 @@
 
 ```
 git clone https://github.com/kh199/hw04_tests
-
 ```
 
 Cоздать и активировать виртуальное окружение:
